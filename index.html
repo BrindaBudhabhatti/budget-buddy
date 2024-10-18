@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Budget Buddy</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    .title {
+      font-size: 2.5rem;
+      font-weight: bold;
+      color: #6c757d;
+    }
+    .balance {
+      font-size: 1.5rem;
+      color: #343a40;
+    }
+    .card {
+      margin: 20px 0;
+    }
+    .chart-container {
+      width: 100%;
+      max-width: 600px;
+      margin: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container mt-5">
+    <header class="text-center">
+      <h1 class="title">Budget Buddy</h1>
+      <div class="tagline" style="margin-bottom: 20px;">"Your Friendly Financial Guide, Proudly Made in Bharat."</div>
+      
+      <div class="balance mt-2">
+        <h2>Total Balance</h2>
+        <span id="totalBalance">₹0.00</span>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-pills justify-content-center my-4" id="pills-tab" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="dashboard-tab" data-bs-toggle="pill" data-bs-target="#dashboard" type="button" role="tab">Dashboard</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="transactions-tab" data-bs-toggle="pill" data-bs-target="#transactions" type="button" role="tab">Transactions</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="add-expense-tab" data-bs-toggle="pill" data-bs-target="#add-expense" type="button" role="tab">Add Expense</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="balance-tab" data-bs-toggle="pill" data-bs-target="#balance" type="button" role="tab">Balance</button>
+      </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="pills-tabContent">
+      <!-- Dashboard -->
+      <div class="tab-pane fade show active" id="dashboard" role="tabpanel">
+        <div class="chart-container">
+          <canvas id="expenseChart"></canvas>
+        </div>
+        <p id="no-transactions" class="text-center text-muted" style="display: block;">No transactions to display.</p>
+      </div>
+
+      <!-- Transactions -->
+      <div class="tab-pane fade" id="transactions" role="tabpanel">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Transactions</h5>
+            <ul class="list-group" id="transaction-list">
+              <!-- Transactions will be dynamically inserted here -->
+            </ul>
+            <button id="resetTransactions" class="btn btn-danger mt-3">Reset Transactions</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Expense -->
+      <div class="tab-pane fade" id="add-expense" role="tabpanel">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Add a New Expense</h5>
+            <form id="expense-form">
+              <div class="mb-3">
+                <label for="expenseCategory" class="form-label">Category</label>
+                <input type="text" class="form-control" id="expenseCategory" placeholder="e.g., Food, Rent" required>
+              </div>
+              <div class="mb-3">
+                <label for="expenseAmount" class="form-label">Amount</label>
+                <input type="number" class="form-control" id="expenseAmount" placeholder="Enter amount" required>
+              </div>
+              <button type="submit" class="btn btn-primary">Add Expense</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- Balance -->
+      <div class="tab-pane fade" id="balance" role="tabpanel">
+        <div class="card">
+          <div class="card-body">
+            <h5 class="card-title">Manage Balance</h5>
+            <form id="balance-form">
+              <div class="mb-3">
+                <label for="newBalance" class="form-label">New Balance</label>
+                <input type="number" class="form-control" id="newBalance" placeholder="Enter new balance">
+              </div>
+              <button type="submit" class="btn btn-primary">Update Balance</button>
+              <button type="button" id="resetBalance" class="btn btn-danger mt-2">Reset Balance</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    // Expense and balance data
+    let balance = 0;
+    let expenses = {};
+
+    // Initialize the chart
+    const ctx = document.getElementById('expenseChart').getContext('2d');
+    const expenseChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Expenses',
+          data: [],
+          backgroundColor: ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0'],
+        }]
+      },
+      options: {
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        }
+      }
+    });
+
+    // Update chart when new data is added
+    function updateChart() {
+      expenseChart.data.labels = Object.keys(expenses);
+      expenseChart.data.datasets[0].data = Object.values(expenses);
+      expenseChart.update();
+      
+      // Hide "No transactions" message if there are transactions
+      if (Object.keys(expenses).length > 0) {
+        document.getElementById('no-transactions').style.display = 'none';
+      }
+    }
+
+    // Handle Add Expense Form
+    document.getElementById('expense-form').addEventListener('submit', function(event) {
+      event.preventDefault();
+      
+      // Add new expense
+      const category = document.getElementById('expenseCategory').value;
+      const amount = document.getElementById('expenseAmount').value;
+
+      if (category && amount) {
+        const amountNumber = parseFloat(amount);
+
+        // Update expenses data
+        if (expenses[category]) {
+          expenses[category] += amountNumber;
+        } else {
+          expenses[category] = amountNumber;
+        }
+
+        // Add transaction to the list
+        const newExpense = document.createElement('li');
+        newExpense.classList.add('list-group-item');
+        newExpense.textContent = `${category}: ₹${amountNumber}`;
+        document.getElementById('transaction-list').appendChild(newExpense);
+
+        // Deduct expense from balance
+        balance -= amountNumber;
+        document.getElementById('totalBalance').textContent = `₹${balance.toFixed(2)}`;
+
+        // Update the chart
+        updateChart();
+      }
+
+      // Check for empty transaction list and update UI
+      checkForNoTransactions();
+    });
+
+    // Reset transactions
+    document.getElementById('resetTransactions').addEventListener('click', function() {
+      // Clear expenses and reset balance
+      expenses = {};
+      balance = 0;
+      document.getElementById('totalBalance').textContent = `₹${balance.toFixed(2)}`;
+      document.getElementById('transaction-list').innerHTML = ''; // Clear transaction list
+      updateChart(); // Update chart
+
+      // Show the no transactions message
+      document.getElementById('no-transactions').style.display = 'block';
+    });
+
+    // Check for no transactions
+    function checkForNoTransactions() {
+      if (Object.keys(expenses).length === 0) {
+        document.getElementById('no-transactions').style.display = 'block';
+      }
+    }
+
+    // Handle Update Balance Form
+    document.getElementById('balance-form').addEventListener('submit', function(event) {
+      event.preventDefault();
+      
+      // Update balance
+      const newBalance = document.getElementById('newBalance').value;
+      if (newBalance) {
+        balance = parseFloat(newBalance);
+        document.getElementById('totalBalance').textContent = `₹${balance.toFixed(2)}`;
+      }
+    });
+
+    // Reset Balance
+    document.getElementById('resetBalance').addEventListener('click', function() {
+      balance = 0;
+      document.getElementById('totalBalance').textContent = `₹${balance.toFixed(2)}`;
+      document.getElementById('newBalance').value = ''; // Clear the input
+    });
+  </script>
+</body>
+</html>
